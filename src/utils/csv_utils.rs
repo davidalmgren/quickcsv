@@ -14,16 +14,21 @@ impl CSVFile {
         CSVFile { header: Vec::new(), data: Vec::new() }
     }
 
-    pub fn read_file(&mut self, file_path: &PathBuf) -> Result<(), Box<dyn Error>> {
-        let file = File::open(file_path)?;
-        let mut rdr: csv::Reader<_> = ReaderBuilder::new().has_headers(true).from_reader(file);
-
+    fn read(&mut self, mut rdr: csv::Reader<impl std::io::Read>) -> Result<(), Box<dyn Error>> {
         self.header = rdr.headers()?.iter().map(ToString::to_string).collect();
         for result in rdr.records() {
             self.data.push(result?.iter().map(ToString::to_string).collect());
         }
-
         Ok(())
+    }
+
+    pub fn read_file(&mut self, file_path: &PathBuf) -> Result<(), Box<dyn Error>> {
+        let file = File::open(file_path)?;
+        self.read(ReaderBuilder::new().has_headers(true).from_reader(file))
+    }
+
+    pub fn read_stdin(&mut self) -> Result<(), Box<dyn Error>> {
+        self.read(ReaderBuilder::new().has_headers(true).from_reader(io::stdin()))
     }
 
     fn compare_columns(

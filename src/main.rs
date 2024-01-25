@@ -5,26 +5,31 @@ mod utils {
     pub mod csv_utils;
 }
 
-fn sort_and_print(file_paths: Vec<&PathBuf>, column: &str, order: &str, method: &str) {
+fn sort_and_print(file_path: Option<&PathBuf>, column: &str, order: &str, method: &str) {
     let descending: bool = if order == "descending" { true } else { false };
     let numerical: bool = if method == "numerical" { true } else { false };
 
-    for path in file_paths {
-        let mut csv_file = utils::csv_utils::CSVFile::new();
+    let mut csv_file = utils::csv_utils::CSVFile::new();
 
-        if let Err(err) = csv_file.read_file(path) {
+    if let Some(file_path) = file_path {
+        if let Err(err) = csv_file.read_file(file_path) {
             eprintln!("Failed to read file: {:?}", err);
-            continue;
+            return;
         }
+    } else {
+        if let Err(err) = csv_file.read_stdin() {
+            eprintln!("Failed to read from STDIN: {:?}", err);
+            return;
+        }
+    }
 
-        if let Err(err) = csv_file.sort_by_column(column, descending, numerical) {
-            eprintln!("Failed to sort: {:?}", err);
-            continue;
-        }
+    if let Err(err) = csv_file.sort_by_column(column, descending, numerical) {
+        eprintln!("Failed to sort: {:?}", err);
+        return;
+    }
 
-        if let Err(err) = csv_file.print() {
-            eprintln!("Displaying output failed {:?}", err);
-        }
+    if let Err(err) = csv_file.print() {
+        eprintln!("Displaying output failed {:?}", err);
     }
 }
 
@@ -35,7 +40,7 @@ fn main() {
                 .about("Sort CSV file by column key")
                 .arg(
                     arg!(-f --file "CSV file")
-                        .required(true)
+                        .required(false)
                         .value_parser(value_parser!(PathBuf))
                         .num_args(1)
                         .action(ArgAction::Set),
@@ -65,12 +70,16 @@ fn main() {
         .get_matches();
 
     if let Some(matches) = matches.subcommand_matches("sort") {
-        let file_paths: Vec<&PathBuf> =
-            matches.get_many::<PathBuf>("file").unwrap_or_default().collect();
-        let key: &str = matches.get_one::<String>("key").unwrap();
-        let order: &str = matches.get_one::<String>("order").unwrap();
-        let method: &str = matches.get_one::<String>("method").unwrap();
+        let file_path = match matches.try_get_one::<PathBuf>("file") {
+            Ok(v) => v,
+            Err(_) => None,
+        };
 
-        sort_and_print(file_paths, key, order, method);
+        sort_and_print(
+            file_path,
+            matches.get_one::<String>("key").unwrap(),
+            matches.get_one::<String>("order").unwrap(),
+            matches.get_one::<String>("method").unwrap(),
+        );
     }
 }
