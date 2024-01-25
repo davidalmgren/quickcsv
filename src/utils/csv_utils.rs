@@ -80,4 +80,16 @@ impl CSVFile {
 
         Ok(())
     }
+
+    pub fn merge(&mut self, other: CSVFile) -> Result<(), Box<dyn Error>> {
+        if self.header != other.header {
+            let error_message = format!("Headers are not equal.");
+            Err(error_message.into())
+        } else {
+            for row in other.data {
+                self.data.push(row)
+            }
+            Ok(())
+        }
+    }
 }

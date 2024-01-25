@@ -33,6 +33,31 @@ fn sort_and_print(file_path: Option<&PathBuf>, column: &str, order: &str, method
     }
 }
 
+fn merge_and_print(file_paths: Vec<&PathBuf>) {
+    let mut csv_file = utils::csv_utils::CSVFile::new();
+    if let Err(err) = csv_file.read_file(file_paths[0]) {
+        eprintln!("Failed to read file: {:?}", err);
+        return;
+    }
+
+    for file_path in file_paths.iter().skip(1).collect::<Vec<_>>() {
+        let mut ext_csv_file = utils::csv_utils::CSVFile::new();
+        if let Err(err) = ext_csv_file.read_file(file_path) {
+            eprintln!("Failed to read file: {:?}", err);
+            return;
+        }
+
+        if let Err(err) = csv_file.merge(ext_csv_file) {
+            eprintln!("Failed to merge files: {:?}", err);
+            return;
+        }
+    }
+
+    if let Err(err) = csv_file.print() {
+        eprintln!("Displaying output failed {:?}", err);
+    }
+}
+
 fn main() {
     let matches = command!()
         .subcommand(
@@ -67,6 +92,15 @@ fn main() {
                         .default_value("numerical"),
                 ),
         )
+        .subcommand(
+            Command::new("merge").about("Merge one or more CSV files").arg(
+                arg!(-f --file "CSV file")
+                    .required(true)
+                    .value_parser(value_parser!(PathBuf))
+                    .num_args(1..10)
+                    .action(ArgAction::Append),
+            ),
+        )
         .get_matches();
 
     if let Some(matches) = matches.subcommand_matches("sort") {
@@ -81,5 +115,7 @@ fn main() {
             matches.get_one::<String>("order").unwrap(),
             matches.get_one::<String>("method").unwrap(),
         );
+    } else if let Some(matches) = matches.subcommand_matches("merge") {
+        merge_and_print(matches.get_many::<PathBuf>("file").unwrap_or_default().collect())
     }
 }
