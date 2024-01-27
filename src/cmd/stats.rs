@@ -15,6 +15,13 @@ pub fn get_subcommand() -> Command {
     )
 }
 
-pub fn execute(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
+pub fn stats_sum(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
     Ok(())
+}
+
+pub fn execute(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
+    match matches.subcommand() {
+        Some(("sum", sub_matches)) => stats_sum(sub_matches),
+        _ => Err("The stats subcommand requires arguments".into()),
+    }
 }

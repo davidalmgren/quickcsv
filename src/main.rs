@@ -13,17 +13,21 @@ mod utils {
 }
 
 fn main() {
-    let matches = command!()
-        .subcommand(sort::get_subcommand())
-        .subcommand(merge::get_subcommand())
-        .subcommand(stats::get_subcommand())
-        .get_matches();
+    let cmd = command!()
+    .subcommand(sort::get_subcommand())
+    .subcommand(merge::get_subcommand())
+    .subcommand(stats::get_subcommand());
+
+    let matches = cmd.get_matches();
 
     let result = match matches.subcommand() {
         Some(("sort", sub_matches)) => sort::execute(sub_matches),
         Some(("merge", sub_matches)) => merge::execute(sub_matches),
         Some(("stats", sub_matches)) => stats::execute(sub_matches),
-        _ => Err("No argument provided, not sure how you ended up here...".into()),
+        _ => {
+            cmd.print_help();
+            Err("No argument provided, not sure how you ended up here...".into())
+        },
     };
 
     if result.is_ok() {
