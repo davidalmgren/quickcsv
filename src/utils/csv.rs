@@ -4,6 +4,18 @@ use std::fs::File;
 use std::io;
 use std::path::PathBuf;
 
+#[derive(PartialEq,Copy, Clone)]
+pub enum CSVSortOrder {
+    Descending,
+    Ascending,
+}
+
+#[derive(PartialEq,Copy, Clone)]
+pub enum CSVSortMethod {
+    Numerical,
+    Alphabetical,
+}
+
 pub struct CSVFile {
     header: Vec<String>,
     data: Vec<Vec<String>>,
@@ -14,38 +26,46 @@ impl CSVFile {
         CSVFile { header: Vec::new(), data: Vec::new() }
     }
 
-    fn read(&mut self, mut rdr: csv::Reader<impl std::io::Read>) -> Result<(), Box<dyn Error>> {
+    fn read(mut self, mut rdr: csv::Reader<impl std::io::Read>) -> Result<Self, Box<dyn Error>> {
         self.header = rdr.headers()?.iter().map(ToString::to_string).collect();
         for result in rdr.records() {
             self.data.push(result?.iter().map(ToString::to_string).collect());
         }
-        Ok(())
+        Ok(self)
     }
 
-    pub fn read_file(&mut self, file_path: &PathBuf) -> Result<(), Box<dyn Error>> {
+    pub fn read_file(self, file_path: &PathBuf) -> Result<Self, Box<dyn Error>> {
         let file = File::open(file_path)?;
         self.read(ReaderBuilder::new().has_headers(true).from_reader(file))
     }
 
-    pub fn read_stdin(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn read_stdin(self) -> Result<Self, Box<dyn Error>> {
         self.read(ReaderBuilder::new().has_headers(true).from_reader(io::stdin()))
     }
 
     fn compare_columns(
-        &self, c1: &str, c2: &str, descending: bool, numerical: bool,
+        &self, c1: &str, c2: &str, sort_order: CSVSortOrder, sort_method: CSVSortMethod,
     ) -> Result<bool, Box<dyn Error>> {
-        if numerical {
-            let c1_numerical = c1.parse::<f64>()?;
-            let c2_numerical = c2.parse::<f64>()?;
-            Ok((descending && c1_numerical > c2_numerical)
-                || (!descending && c1_numerical < c2_numerical))
-        } else {
-            Ok((descending && c1 > c2) || (!descending && c1 < c2))
+        match sort_method {
+            CSVSortMethod::Numerical => {
+                let c1_n = c1.parse::<f64>()?;
+                let c2_n = c2.parse::<f64>()?;
+                Ok(match sort_order {
+                    CSVSortOrder::Descending => c1_n > c2_n,
+                    CSVSortOrder::Ascending => c1_n < c2_n,
+                })
+            }
+            CSVSortMethod::Alphabetical => {
+                Ok(match sort_order {
+                    CSVSortOrder::Descending => c1 > c2,
+                    CSVSortOrder::Ascending => c1 < c2,
+                })
+            }
         }
     }
 
     pub fn sort_by_column(
-        &mut self, key: &str, descending: bool, numerical: bool,
+        &mut self, key: &str, sort_order: CSVSortOrder, sort_method: CSVSortMethod,
     ) -> Result<(), Box<dyn Error>> {
         if let Some(cmp_col_idx) = self.header.iter().position(|s| s == key) {
             for i in 0..self.data.len() {
@@ -53,8 +73,8 @@ impl CSVFile {
                     if self.compare_columns(
                         &self.data[j + 1][cmp_col_idx],
                         &self.data[j][cmp_col_idx],
-                        descending,
-                        numerical,
+                        sort_order,
+                        sort_method,
                     )? {
                         let tmp = self.data[j][cmp_col_idx].clone();
                         self.data[j][cmp_col_idx] = self.data[j + 1][cmp_col_idx].clone();

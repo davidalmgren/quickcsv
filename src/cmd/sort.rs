@@ -3,6 +3,28 @@ use std::path::PathBuf;
 
 use clap::{arg, value_parser, ArgAction, ArgMatches, Command};
 
+fn parse_order(order: &str) -> Result<crate::utils::csv::CSVSortOrder, Box<dyn Error>> {
+    if order == "descending" {
+        Ok(crate::utils::csv::CSVSortOrder::Descending)
+    } else if order == "ascending" {
+        Ok(crate::utils::csv::CSVSortOrder::Ascending)
+    } else {
+        let err = format!("Invalid argument {}", order);
+        Err(err.into())
+    }
+}
+
+fn parse_method(method: &str) -> Result<crate::utils::csv::CSVSortMethod, Box<dyn Error>> {
+    if method == "numerical" {
+        Ok(crate::utils::csv::CSVSortMethod::Numerical)
+    } else if method == "alphabetical" {
+        Ok(crate::utils::csv::CSVSortMethod::Alphabetical)
+    } else {
+        let err = format!("Invalid parse method {}", method);
+        Err(err.into())
+    }
+}
+
 pub fn get_subcommand() -> Command {
     Command::new("sort")
         .about("Sort CSV file by column key")
@@ -36,45 +58,19 @@ pub fn get_subcommand() -> Command {
         )
 }
 
-pub fn execute(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
-    let file_path = match matches.try_get_one::<PathBuf>("file") {
-        Ok(v) => v,
-        Err(_) => None,
+pub fn execute(matches: &ArgMatches) -> Result<bool, Box<dyn Error>> {
+    let key = matches.get_one::<String>("key").unwrap();
+    let order = parse_order(matches.get_one::<String>("order").unwrap())?;
+    let method = parse_method(matches.get_one::<String>("method").unwrap())?;
+
+    let mut primary_csv: crate::utils::csv::CSVFile = match matches.try_get_one::<PathBuf>("file").ok() {
+        Some(file_path) => crate::utils::csv::CSVFile::new().read_file(file_path.unwrap())?,
+        None => crate::utils::csv::CSVFile::new().read_stdin()?
     };
 
-    sort_and_print(
-        file_path,
-        matches.get_one::<String>("key").unwrap(),
-        matches.get_one::<String>("order").unwrap(),
-        matches.get_one::<String>("method").unwrap(),
-    );
-    Ok(())
-}
+    primary_csv.sort_by_column(key, order, method)?;
 
-fn sort_and_print(file_path: Option<&PathBuf>, column: &str, order: &str, method: &str) {
-    let descending: bool = if order == "descending" { true } else { false };
-    let numerical: bool = if method == "numerical" { true } else { false };
+    primary_csv.print()?;
 
-    let mut csv_file = crate::utils::csv::CSVFile::new();
-
-    if let Some(file_path) = file_path {
-        if let Err(err) = csv_file.read_file(file_path) {
-            eprintln!("Failed to read file: {:?}", err);
-            return;
-        }
-    } else {
-        if let Err(err) = csv_file.read_stdin() {
-            eprintln!("Failed to read from STDIN: {:?}", err);
-            return;
-        }
-    }
-
-    if let Err(err) = csv_file.sort_by_column(column, descending, numerical) {
-        eprintln!("Failed to sort: {:?}", err);
-        return;
-    }
-
-    if let Err(err) = csv_file.print() {
-        eprintln!("Displaying output failed {:?}", err);
-    }
+    Ok(true)
 }
